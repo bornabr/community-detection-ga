@@ -8,86 +8,65 @@ class Problem:
 	def __init__(self, n, adj, default_n_community):
 		self.n = n
 		self.adj = adj
+		self.m = int(sum([len(x) for x in self.adj])/2)
 		self.default_n_community = default_n_community
-		self.population_size = 5
 	
 	def initial_population(self):
 		self.population = []
 		for _ in range(self.population_size):
 			vertices = list(range(self.n))
 			random.shuffle(vertices)
-			individual = []
+			individual_map = [None for _ in range(self.n)]
+			
+			counter = 0
 			
 			while len(vertices) != 0:
 				if len(vertices) < int(self.n / self.default_n_community):
 					selected = vertices[:]
-					individual.append(vertices)
+					for i in selected:
+						individual_map[i] = counter
+					counter += 1
 					break
 				else:
 					selected = random.choices(vertices, k=int(self.n / self.default_n_community))
 					vertices = [e for e in vertices if e not in selected]
-					individual.append(selected)
-			self.population.append(individual)
-
+					for i in selected:
+						individual_map[i] = counter
+					counter += 1
+			self.population.append([individual_map,None])
+			
+		self.population = sorted(self.population, key=lambda agent: self.fitness(
+			agent), reverse=False)[:self.parents_size]
 	
 	def fitness(self, individual):
-		poisonous_barrels_combinations = list(
-			combinations(ALPHABET[:self.n_fluids], 2))
-		outcomes = set()
-		for poisonous_barrels in poisonous_barrels_combinations:
-			died_on = []
-			for o in range(4):
-				dead_orchid = False
-				for d in range(3):
-					if not dead_orchid and any([p in individual[o][d]
-												for p in poisonous_barrels]):
-						dead_orchid = True
-						died_on.append(d)
-					elif not dead_orchid and d==2:
-						died_on.append(3)
-			outcomes.add(tuple(died_on))
-		return self.n_possible_pairs - len(outcomes)
-	
+		Q = 0
+		for i in range(self.n):
+			for j in range(self.n):
+				Q += (int(j in self.adj[i]) - ((len(self.adj[i]) * len(self.adj[j])) / (2 * self.m))) * int(individual[0][i] == individual[0][j])
+		Q /= (2 * self.m)
+		
+		individual[1] = Q
+		return Q
+		
 	def selection(self):
 		random.shuffle(self.population)
 		self.parents = self.population[:self.tournament_size]
 		self.parents = sorted(self.parents, key=lambda agent: self.fitness(
-			agent), reverse=False)[:self.parents_size]
+			agent), reverse=True)[:self.parents_size]
 	
 	def breed(self, parent1, parent2):
-		pivot_orchid = random.choice(range(self.n_sacrificing_orchids))
-		pivot_day = random.choice(range(self.n_days))
+		child1 = [None, None]
+		child2 = [None, None]
 		
-		child1 = []
-		child2 = []
+		pivot = random.choice(range(1, self.n-1))
 		
-		for i in range(self.n_sacrificing_orchids):
-			sequence1 = []
-			sequence2 = []
-			if i < pivot_orchid:
-				for j in range(self.n_days):
-					sequence1.append(parent1[i][j][:])
-					sequence2.append(parent2[i][j][:])
-			elif i == pivot_orchid:
-				for j in range(self.n_days):
-					if j < pivot_day:
-						sequence1.append(parent1[i][j][:])
-						sequence2.append(parent2[i][j][:])
-					else:
-						sequence1.append(parent2[i][j][:])
-						sequence2.append(parent1[i][j][:])
-			else:
-				for j in range(self.n_days):
-					sequence1.append(parent2[i][j][:])
-					sequence2.append(parent1[i][j][:])
-			child1.append(sequence1)
-			child2.append(sequence2)
-		
+		child1[0] = parent1[0][:pivot] + parent2[0][pivot:]
+		child2[0] = parent2[0][:pivot] + parent1[0][pivot:]
+		self.fitness(child1)
+		self.fitness(child2)
 		return child1, child2
-		
-	
+
 	def breed_offsprings(self):
-		
 		self.children = []
 		
 		for _ in range(self.breed_rate):
@@ -98,35 +77,38 @@ class Problem:
 				self.children.append(child2)
 		
 	def mutate(self, individual):
-		if(random.random() < self.mutation_rate):
-			o1, d1 = random.randrange(
-				self.n_sacrificing_orchids), random.randrange(self.n_days)
-			o2, d2 = random.randrange(
-				self.n_sacrificing_orchids), random.randrange(self.n_days)
-			while len(set(individual[o1][d1] + individual[o2][d2])) < 4:
-				o2, d2 = random.randrange(
-					self.n_sacrificing_orchids), random.randrange(self.n_days)
-			individual[o1][d1][1], individual[o2][d2][1] = individual[o2][d2][1], individual[o1][d1][1]
-	
+		individual_copy = [individual[0][:], None]
+		if random.random() < self.mutation_rate:
+			gene = random.choice(range(self.n))
+			cluster = random.choice(list(set(individual[0])))
+			while cluster == individual[0][gene]:
+				cluster = random.choice(list(set(individual[0])))
+			individual_copy[0][gene] = cluster
+		self.fitness(individual_copy)
+		return individual_copy
+		
 	def mutate_offsprings(self):
+		self.mutated_children = []
 		for individual in self.children:
-			self.mutate(individual)
+			self.mutated_children.append(self.mutate(individual))
+		return self.mutated_children
 	
 	def replacement(self):
-		self.children = sorted(
-			self.children, key=lambda agent: self.fitness(agent), reverse=False)
-		self.parents = sorted(
-			self.parents, key=lambda agent: self.fitness(agent), reverse=False)
-
-		self.population = self.children[:-self.elite_size] + self.parents[:self.elite_size]
+		self.mutated_children = sorted(
+			self.mutated_children, key=lambda agent: agent[1], reverse=True)
 		self.population = sorted(
-                    self.population, key=lambda agent: self.fitness(agent), reverse=False)
+			self.parents, key=lambda agent: agent[1], reverse=True)
+
+		self.population = self.mutated_children[:-self.elite_size] + self.parents[:self.elite_size]
+		self.population = sorted(
+                    self.population, key=lambda agent: self.fitness(agent), reverse=True)
 	
 	def evaluate(self):
-		pop_fitness = [self.fitness(agent) for agent in self.population]
+		pop_fitness = [agent[1] for agent in self.population]
 	
 		return sum(pop_fitness), min(pop_fitness)
 
+	# def GA(self, population_size, tournament_size, parents_size, mutation_rate, elite_size, n_generations):
 	def GA(self, population_size, tournament_size, parents_size, mutation_rate, elite_size, n_generations):
 		self.population_size = population_size
 		self.tournament_size = tournament_size
@@ -142,13 +124,11 @@ class Problem:
 			self.selection()
 			self.breed_offsprings()
 			self.mutate_offsprings()
+			
 			self.replacement()
 			eval_ = self.evaluate()
 			
 			print("Epoch", epoch, ":\tPopulation total fitness:",
                             eval_[0], "\tBest fitness:", eval_[1])
-			
-			if int(eval_[1]) == 0:
-				break
 		
-		print(self.fitness(self.population[0]), self.population[0])
+		print(self.population[0][1], self.population[0][0])
