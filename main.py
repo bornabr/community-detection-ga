@@ -16,5 +16,5 @@ for edge in lines:
 
 problem = Problem(n, adj, 6)
 
-problem.GA(population_size = 100, tournament_size = 80, parents_size = 60, mutation_rate = 0.1, elite_size = 20, n_generations = 1000)
+problem.GA(population_size = 100, tournament_size = 80, parents_size = 60, mutation_rate = 0.3, elite_size = 20, n_generations = 1000)
 

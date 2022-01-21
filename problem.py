@@ -35,8 +35,7 @@ class Problem:
 					counter += 1
 			self.population.append([individual_map,None])
 			
-		self.population = sorted(self.population, key=lambda agent: self.fitness(
-			agent), reverse=False)[:self.parents_size]
+		self.population = sorted(self.population, key=lambda agent: self.fitness(agent), reverse=False)
 	
 	def fitness(self, individual):
 		Q = 0
@@ -50,7 +49,7 @@ class Problem:
 		
 	def selection(self):
 		random.shuffle(self.population)
-		self.parents = self.population[:self.tournament_size]
+		self.parents = copy.deepcopy(self.population[:self.tournament_size])
 		self.parents = sorted(self.parents, key=lambda agent: self.fitness(
 			agent), reverse=True)[:self.parents_size]
 	
@@ -60,8 +59,8 @@ class Problem:
 		
 		pivot = random.choice(range(1, self.n-1))
 		
-		child1[0] = parent1[0][:pivot] + parent2[0][pivot:]
-		child2[0] = parent2[0][:pivot] + parent1[0][pivot:]
+		child1[0] = copy.deepcopy(parent1[0][:pivot] + parent2[0][pivot:])
+		child2[0] = copy.deepcopy(parent2[0][:pivot] + parent1[0][pivot:])
 		self.fitness(child1)
 		self.fitness(child2)
 		return child1, child2
@@ -77,7 +76,7 @@ class Problem:
 				self.children.append(child2)
 		
 	def mutate(self, individual):
-		individual_copy = [individual[0][:], None]
+		individual_copy = [copy.deepcopy(individual[0][:]), None]
 		if random.random() < self.mutation_rate:
 			gene = random.choice(range(self.n))
 			cluster = random.choice(list(set(individual[0])))
@@ -97,9 +96,10 @@ class Problem:
 		self.mutated_children = sorted(
 			self.mutated_children, key=lambda agent: agent[1], reverse=True)
 		self.population = sorted(
-			self.parents, key=lambda agent: agent[1], reverse=True)
+			self.population, key=lambda agent: agent[1], reverse=True)
 
-		self.population = self.mutated_children[:-self.elite_size] + self.parents[:self.elite_size]
+		self.population = self.mutated_children[:-
+                                          self.elite_size] + self.population[:self.elite_size]
 		self.population = sorted(
                     self.population, key=lambda agent: self.fitness(agent), reverse=True)
 	
